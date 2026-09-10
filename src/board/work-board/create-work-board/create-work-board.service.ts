@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -6,12 +6,14 @@ import {
 import { PrismaService } from "@src/prisma/prisma.service";
 import { CreateWorkBoardDto } from "./dto/create-work-board.dto";
 import { S3Service } from "@src/s3/s3.service";
+import { WebSocketGatewayService } from "@src/websocket/websocket.gateway";
 
 @Injectable()
 export class CreateWorkBoardService {
   constructor(
     private readonly client: PrismaService,
     private readonly s3Service: S3Service,
+    private readonly gateway: WebSocketGatewayService,
   ) {}
   async createWorkBoardFunc(
     context: any,
@@ -35,25 +37,32 @@ export class CreateWorkBoardService {
         workStatus,
         detail,
       } = createWorkBoardDto;
+      let targetManagerId: number | null = null;
+
       if (toPerson) {
         if (toTeam) {
-          const existingManageUser = client.manageUser.findFirst({
+          const existingManageUser = await client.manageUser.findFirst({
             where: {
-              mUsername: createWorkBoardDto.toPerson,
+              mUsername: toPerson,
               mPart: {
-                has: createWorkBoardDto.toTeam,
+                has: toTeam,
               },
               branchId,
+            },
+            select: {
+              id: true,
+              mUsername: true,
             },
           });
           if (!existingManageUser) {
             throw new NotFoundException(
-              "팀(부서)와 전달 받는 직원의 이름을 다시 확인하세요.",
+              "전달 받을 직원의 이름과 부서를 다시 확인하세요.",
             );
           }
+          targetManagerId = existingManageUser.id;
         } else {
           throw new BadRequestException(
-            "팀(부서) 가 제대로 입력되었는지 확인하세요.",
+            "전달 받을 부서가 올바르게 입력되었는지 확인하세요.",
           );
         }
       }
@@ -90,7 +99,7 @@ export class CreateWorkBoardService {
         });
       }
 
-      await client.workBoard.create({
+      const createdWorkBoard = await client.workBoard.create({
         data: {
           title,
           writer,
@@ -106,6 +115,32 @@ export class CreateWorkBoardService {
           branchId: user.branchId,
         },
       });
+
+      if (targetManagerId) {
+        const createAlarm = await client.alarm.create({
+          data: {
+            title: "업무 요청",
+            content: `${writer || user?.mUsername || "작성자"}님이 ${toPerson}님에게 업무를 요청했습니다: ${title}`,
+            personalTarget: [targetManagerId],
+            branchId: user.branchId,
+          },
+        });
+
+        this.gateway.sendNewWorkBoardNotification({
+          type: "NEW_WORK_BOARD",
+          data: {
+            workBoardId: createdWorkBoard.id,
+            alarmId: createAlarm.id,
+            title,
+            writer,
+            toPerson,
+            toTeam,
+            targetManagerId,
+            branchId: user.branchId,
+          },
+        });
+      }
+
       return {
         ok: true,
         message: "정상적으로 생성완료 되었습니다.",

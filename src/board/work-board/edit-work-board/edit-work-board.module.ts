@@ -1,12 +1,12 @@
 ﻿import { Module } from "@nestjs/common";
-import { CreateWorkBoardResolver } from "./create-work-board.resolver";
-import { CreateWorkBoardService } from "./create-work-board.service";
 import { PrismaModule } from "@src/prisma/prisma.module";
 import { S3Service } from "@src/s3/s3.service";
 import { WebsocketModule } from "@src/websocket/websocket.module";
+import { EditWorkBoardResolver } from "./edit-work-board.resolver";
+import { EditWorkBoardService } from "./edit-work-board.service";
 
 @Module({
   imports: [PrismaModule, WebsocketModule],
-  providers: [CreateWorkBoardResolver, CreateWorkBoardService, S3Service],
+  providers: [EditWorkBoardResolver, EditWorkBoardService, S3Service],
 })
-export class CreateWorkBoardModule {}
+export class EditWorkBoardModule {}

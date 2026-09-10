@@ -1177,6 +1177,7 @@ type Mutation {
   deleteBusinessAccountReq(id: Int!): CommonResponse!
   validateNumber(input: ValidateNumberDto!): ResultValidateNumber!
   createWorkBoard(createWorkBoardDto: CreateWorkBoardDto!): CommonResponse!
+  editWorkBoard(editWorkBoardDto: EditWorkBoardDto!): CommonResponse!
 }
 
 input CreateStudentStateDto {
@@ -1243,6 +1244,22 @@ input CreateWorkBoardDto {
   endDate: String
   workStatus: String
   detail: String!
+  filePath: String
+  fileName: String
+  lastModifiedTime: String
+}
+
+input EditWorkBoardDto {
+  id: Int!
+  title: String
+  writer: String
+  toTeam: String
+  toPerson: String
+  level: String
+  startDate: String
+  endDate: String
+  workStatus: String
+  detail: String
   filePath: String
   fileName: String
   lastModifiedTime: String

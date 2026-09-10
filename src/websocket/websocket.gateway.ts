@@ -1,4 +1,4 @@
-import {
+﻿import {
   WebSocketGateway,
   OnGatewayInit,
   OnGatewayConnection,
@@ -12,11 +12,11 @@ import { Subject } from "rxjs";
 import { Server, Socket } from "socket.io";
 
 @WebSocketGateway(4001, {
-  path: "/socket.io", // 기본 path로 설정
+  path: "/socket.io", // 소켓 연결 path 설정
   cors: {
-    origin: "http://localhost:8000", // 클라이언트 도메인 허용
+    origin: "http://localhost:8000", // 허용할 프론트엔드 주소
     methods: ["GET", "POST"], // 허용할 HTTP 메서드
-    credentials: true, // 쿠키 전송 허용
+    credentials: true, // 인증 정보 포함 허용
   },
   namespace: "gms-new-works",
 })
@@ -70,5 +70,8 @@ export class WebSocketGatewayService
   }
   sendNewStudentNotification(payload: any) {
     this.notificationSubject.next({ event: "NEW_STUDENT", payload });
+  }
+  sendNewWorkBoardNotification(payload: any) {
+    this.notificationSubject.next({ event: "NEW_WORK_BOARD", payload });
   }
 }
