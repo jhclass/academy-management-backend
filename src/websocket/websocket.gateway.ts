@@ -5,8 +5,8 @@
   OnGatewayDisconnect,
   ConnectedSocket,
   WebSocketServer,
-  //MessageBody,
-  //SubscribeMessage,
+  MessageBody,
+  SubscribeMessage,
 } from "@nestjs/websockets";
 import { Subject } from "rxjs";
 import { Server, Socket } from "socket.io";
@@ -65,6 +65,48 @@ export class WebSocketGatewayService
   handleDisconnect(@ConnectedSocket() client: Socket) {
     this.disconnectionSubject.next(client);
   }
+
+  @SubscribeMessage("joinUserRoom")
+  handleJoinUserRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { userId?: number; branchId?: number },
+  ) {
+    const { userId, branchId } = payload;
+
+    if (branchId) {
+      client.join(`branch:${branchId}`);
+    }
+    if (userId) {
+      client.join(`user:${userId}`);
+    }
+
+    return {
+      ok: true,
+      rooms: {
+        branch: branchId ? `branch:${branchId}` : null,
+        user: userId ? `user:${userId}` : null,
+      },
+    };
+  }
+
+  sendToUsers(event: string, targetUserIds: number[], payload: any) {
+    targetUserIds.forEach((userId) => {
+      this.server.to(`user:${userId}`).emit(event, payload);
+    });
+    console.log(
+      `Socket room notification sent [${event}]:`,
+      JSON.stringify({ targetUserIds, payload }),
+    );
+  }
+
+  sendToBranch(event: string, branchId: number, payload: any) {
+    this.server.to(`branch:${branchId}`).emit(event, payload);
+    console.log(
+      `Socket branch notification sent [${event}]:`,
+      JSON.stringify({ branchId, payload }),
+    );
+  }
+
   sendNewStudentStateNotification(payload: any) {
     this.notificationSubject.next({ event: "NEW_STUDENTSTATE", payload });
   }
@@ -72,6 +114,11 @@ export class WebSocketGatewayService
     this.notificationSubject.next({ event: "NEW_STUDENT", payload });
   }
   sendNewWorkBoardNotification(payload: any) {
+    const targetManagerId = payload?.data?.targetManagerId;
+    if (targetManagerId) {
+      this.sendToUsers("NEW_WORK_BOARD", [targetManagerId], payload);
+      return;
+    }
     this.notificationSubject.next({ event: "NEW_WORK_BOARD", payload });
   }
 }
