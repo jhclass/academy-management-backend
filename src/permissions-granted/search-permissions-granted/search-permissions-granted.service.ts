@@ -1,10 +1,10 @@
-import { Injectable } from "@nestjs/common";
+﻿import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@src/prisma/prisma.service";
 interface ISearchConditions {
   id?: number;
   permissionName?: string;
   topic?: string;
-  ManageUser: {
+  ManageUser?: {
     some: {
       id: number;
     };
@@ -22,9 +22,7 @@ export class SearchPermissionsGrantedService {
     manageUserId?: number,
   ) {
     try {
-      const { user } = context.req;
-      const { branchId } = user;
-      const searchConditions = { ...branchId } as ISearchConditions;
+      const searchConditions = {} as ISearchConditions;
       if (id) {
         searchConditions.id = id;
       }
@@ -51,7 +49,7 @@ export class SearchPermissionsGrantedService {
       });
       return {
         ok: true,
-        message: `정삭적으로 검색 완료 되었습니다.`,
+        message: "Permissions searched successfully.",
         data: result || [],
         totalCount: totalCount || 0,
       };
@@ -59,7 +57,7 @@ export class SearchPermissionsGrantedService {
       console.error(error);
       return {
         ok: false,
-        message: `에러발생! 에러메세지를 확인하세요.`,
+        message: "An error occurred.",
         error: `Error:${error.message}`,
       };
     }

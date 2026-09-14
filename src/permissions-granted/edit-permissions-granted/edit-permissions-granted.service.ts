@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+﻿import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "@src/prisma/prisma.service";
 import { validateIdExists } from "@src/utils/shared.utils";
 
@@ -19,15 +19,41 @@ export class EditPermissionsGrantedService {
   ) {
     try {
       const { user } = context.req;
-      const { branchId } = user;
+      const branchId = user?.branchId;
       const existingId = await this.client.permissionsGranted.findUnique({
-        where: { id, branchId: branchId },
+        where: { id },
       });
-      //existingId 검증
       validateIdExists(existingId);
 
       manageUserIdsToConnect = manageUserIdsToConnect || [];
       manageUserIdsToDisconnect = manageUserIdsToDisconnect || [];
+      const manageUserIds = [
+        ...manageUserIdsToConnect,
+        ...manageUserIdsToDisconnect,
+      ];
+
+      if (manageUserIds.length > 0) {
+        const existingManageUsers = await this.client.manageUser.findMany({
+          where: {
+            id: {
+              in: manageUserIds,
+            },
+            branchId,
+          },
+          select: {
+            id: true,
+          },
+        });
+        const foundIds = existingManageUsers.map((user) => user.id);
+        const missingIds = manageUserIds.filter((id) => !foundIds.includes(id));
+
+        if (missingIds.length > 0) {
+          throw new NotFoundException(
+            `ManageUser IDs not found in this branch: ${missingIds.join(", ")}`,
+          );
+        }
+      }
+
       await this.client.permissionsGranted.update({
         where: { id },
         data: {
@@ -47,12 +73,12 @@ export class EditPermissionsGrantedService {
           lastModifiedTime,
         },
       });
-      return { ok: true, message: `정상적으로 수정 완료 되었습니다.` };
+      return { ok: true, message: "Permission updated successfully." };
     } catch (error) {
       console.error(error.message);
       return {
         ok: false,
-        message: `에러발생! 에러메세지를 확인하세요.`,
+        message: "An error occurred.",
         error: `Error:${error.message}`,
       };
     }

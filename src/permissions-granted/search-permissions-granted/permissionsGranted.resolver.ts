@@ -1,4 +1,4 @@
-import { Parent, ResolveField, Resolver } from "@nestjs/graphql";
+import { Parent, ResolveField, Resolver, Context } from "@nestjs/graphql";
 
 import { PermissionsGrantedService } from "./permissionsGranted.service";
 import { PermissionsGranted } from "@src/permissions-granted/entity/permissionsGranted.entity";
@@ -10,8 +10,10 @@ export class PermissionsGrantedResolver {
   @ResolveField(() => [ManageUser])
   async ManageUser(
     @Parent() permissionsGranted: PermissionsGranted,
+    @Context() context: any,
   ): Promise<ManageUser[]> {
     const { id } = permissionsGranted;
-    return this.permissionsGrantedService.permissionsGrantedFunc(id);
+    const branchId = context?.req?.user?.branchId;
+    return this.permissionsGrantedService.permissionsGrantedFunc(id, branchId);
   }
 }
