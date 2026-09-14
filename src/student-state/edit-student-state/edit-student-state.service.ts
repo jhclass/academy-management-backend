@@ -1,14 +1,21 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "@src/prisma/prisma.service";
+import { WebSocketGatewayService } from "@src/websocket/websocket.gateway";
 import { EditStudentStateDto } from "./dto/edit-student-state.dto";
+
+const UNASSIGNED_MANAGER = "담당자 저정필요";
 
 @Injectable()
 export class EditStudentStateService {
-  constructor(private readonly client: PrismaService) {}
+  constructor(
+    private readonly client: PrismaService,
+    private readonly gateway: WebSocketGatewayService,
+  ) {}
+
   async editStudentStateFunc(context: any, input: EditStudentStateDto) {
     try {
       const { user } = context.req;
@@ -35,27 +42,50 @@ export class EditStudentStateService {
         adviceTypes,
         lastModifiedTime,
       } = input;
+
       if (!id || !lastModifiedTime) {
         throw new BadRequestException(
-          "id 와 lastModifiedTime 은 필수값 입니다.",
+          "id와 lastModifiedTime은 필수값입니다.",
         );
       }
+
       const existingData = await this.client.studentState.findUnique({
-        where: {
-          id: id,
-        },
-        include: {
-          adviceTypes: true,
-        },
+        where: { id },
+        include: { adviceTypes: true },
       });
+
       if (!existingData) {
         throw new NotFoundException(
-          "데이터가 존재 하지 않습니다. id를 다시 확인하세요.",
+          "데이터가 존재하지 않습니다. id를 다시 확인하세요.",
         );
       }
-      const existingAdviceTtypeData = existingData.adviceTypes;
-      await this.client.studentState.update({
-        where: { id: id },
+
+      const assigneeChanged = pic !== undefined && pic !== existingData.pic;
+      const hasAssignedManager = Boolean(pic && pic !== UNASSIGNED_MANAGER);
+      const targetManager = hasAssignedManager
+        ? await this.client.manageUser.findFirst({
+            where: {
+              mUsername: pic,
+              branchId: user?.branchId || existingData.branchId,
+            },
+            select: {
+              id: true,
+              mUsername: true,
+            },
+          })
+        : null;
+
+      const managerRelationData =
+        pic === undefined
+          ? {}
+          : targetManager
+            ? { currentManager: { connect: { id: targetManager.id } } }
+            : pic === UNASSIGNED_MANAGER
+              ? { currentManager: { disconnect: true } }
+              : {};
+
+      const updatedStudentState = await this.client.studentState.update({
+        where: { id },
         data: {
           campus,
           stName,
@@ -75,18 +105,44 @@ export class EditStudentStateService {
           birthday,
           pic,
           receiptDiv,
-          currentManager: {
-            connect: { id: user?.id },
-          },
+          ...managerRelationData,
           adviceTypes: {
-            disconnect: existingAdviceTtypeData.map((type) => ({
+            disconnect: existingData.adviceTypes.map((type) => ({
               id: type.id,
             })),
-            connect: adviceTypes.map((id) => ({ id })),
+            connect: (adviceTypes || []).map((id) => ({ id })),
           },
           lastModifiedTime,
         },
       });
+
+      if (assigneeChanged && targetManager) {
+        const studentName =
+          updatedStudentState.stName || stName || existingData.stName;
+        const alarmContent = `${studentName}님의 상담 담당자가 ${targetManager.mUsername}님으로 변경되었습니다.`;
+        const createAlarm = await this.client.alarm.create({
+          data: {
+            title: "상담 담당자 변경",
+            content: alarmContent,
+            personalTarget: [targetManager.id],
+            branchId: user?.branchId || existingData.branchId,
+          },
+        });
+
+        this.gateway.sendNewStudentStateNotification({
+          type: "NEW_STUDENTSTATE",
+          data: {
+            memo: true,
+            studentStateId: updatedStudentState.id,
+            alarmId: createAlarm.id,
+            studentname: studentName,
+            alarmTitle: "상담 담당자 변경",
+            alarmContent,
+            filterTargetIds: [targetManager.id],
+            branchId: user?.branchId || existingData.branchId,
+          },
+        });
+      }
 
       return {
         ok: true,
@@ -96,7 +152,7 @@ export class EditStudentStateService {
       console.error(error);
       return {
         ok: false,
-        message: `에러발생! 에러메세지를 확인하세요.`,
+        message: "에러발생! 에러메세지를 확인하세요.",
         error: `Error:${error.message}`,
       };
     }

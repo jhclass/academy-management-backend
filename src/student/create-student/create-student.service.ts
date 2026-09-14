@@ -63,6 +63,7 @@ export class CreateStudentService {
       //매니져 출력
       const targetManagerIds = await this.client.manageUser.findMany({
         where: {
+          branchId: user?.branchId,
           PermissionsGranted: {
             some: {
               id: 12,

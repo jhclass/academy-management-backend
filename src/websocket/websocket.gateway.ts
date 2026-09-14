@@ -1,4 +1,4 @@
-﻿import {
+import {
   WebSocketGateway,
   OnGatewayInit,
   OnGatewayConnection,
@@ -107,11 +107,20 @@ export class WebSocketGatewayService
     );
   }
 
+  private sendToPayloadUsers(event: string, payload: any) {
+    const targetUserIds = payload?.data?.filterTargetIds;
+    if (Array.isArray(targetUserIds) && targetUserIds.length > 0) {
+      this.sendToUsers(event, targetUserIds, payload);
+      return;
+    }
+    this.notificationSubject.next({ event, payload });
+  }
+
   sendNewStudentStateNotification(payload: any) {
-    this.notificationSubject.next({ event: "NEW_STUDENTSTATE", payload });
+    this.sendToPayloadUsers("NEW_STUDENTSTATE", payload);
   }
   sendNewStudentNotification(payload: any) {
-    this.notificationSubject.next({ event: "NEW_STUDENT", payload });
+    this.sendToPayloadUsers("NEW_STUDENT", payload);
   }
   sendNewWorkBoardNotification(payload: any) {
     const targetManagerId = payload?.data?.targetManagerId;

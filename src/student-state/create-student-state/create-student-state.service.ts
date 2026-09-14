@@ -141,6 +141,7 @@ export class CreateStudentStateService {
       //매니져 출력
       const targetManagerIds = await this.client.manageUser.findMany({
         where: {
+          branchId: user?.branchId || branchId,
           PermissionsGranted: {
             some: {
               id: 10,
@@ -152,9 +153,7 @@ export class CreateStudentStateService {
         },
       });
 
-      const filterTargetIds = targetManagerIds
-        .filter((manager) => manager.id !== user?.id)
-        .map((manager) => manager.id);
+      const filterTargetIds = targetManagerIds.map((manager) => manager.id);
 
       const createAlarm = await this.client.alarm.create({
         data: {
